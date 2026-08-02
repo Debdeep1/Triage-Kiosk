@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sahara Health Kiosk</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap');
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:'IBM Plex Sans',sans-serif; background:#EFF2EF; color:#1F2E2B; }
+  #app { display:flex; min-height:100vh; }
+  #sidebar { width:280px; flex-shrink:0; background:#fff; border-right:1px solid #D8DCD6; padding:20px; overflow-y:auto; transition: margin-left .25s; }
+  #sidebar.collapsed { margin-left:-280px; }
+  .eyebrow { font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#2F6E5C; font-weight:600; }
+  .muted { color:#33403C; opacity:.65; }
+  #keyBlock { padding-bottom:18px; margin-bottom:18px; border-bottom:1px solid #D8DCD6; }
+  #keyRow { display:flex; gap:6px; margin-top:8px; }
+  #apiKeyInput { flex:1; font-size:12px; padding:7px 9px; border-radius:8px; border:1px solid #D8DCD6; outline:none; min-width:0; }
+  #saveKeyBtn { font-size:12px; padding:7px 12px; border-radius:8px; border:none; background:#1F2E2B; color:#fff; font-weight:500; cursor:pointer; white-space:nowrap; }
+  #saveKeyBtn.active { background:#2F6E5C; }
+  #keyStatus { font-size:11px; color:#2F6E5C; margin-top:6px; min-height:14px; }
+  .scenario-btn { display:block; width:100%; text-align:left; font-size:13px; padding:9px 11px; margin-bottom:7px; border-radius:9px; border:1px solid #D8DCD6; background:#F7F8F6; color:#1F2E2B; cursor:pointer; }
+  .scenario-btn:hover { opacity:.8; }
+  .scenario-btn:disabled { opacity:.4; cursor:default; }
+  #sideFooter { margin-top:20px; padding-top:14px; border-top:1px solid #D8DCD6; font-size:11px; line-height:1.5; color:#33403C; opacity:.6; }
+  #main { flex:1; display:flex; justify-content:center; }
+  #kiosk { width:100%; max-width:680px; display:flex; flex-direction:column; height:100vh; }
+  #header { padding:24px 24px 14px; }
+  #headerTop { display:flex; align-items:center; justify-content:space-between; }
+  #brand { display:flex; align-items:center; gap:12px; }
+  #logo { width:36px; height:36px; border-radius:999px; background:#2F6E5C; display:flex; align-items:center; justify-content:center; color:#fff; font-size:18px; flex-shrink:0; }
+  h1 { font-family:'Fraunces',serif; font-weight:600; font-size:22px; margin:0; }
+  #tagline { font-size:12px; margin:2px 0 0; opacity:.6; }
+  #toggleBtn { font-size:12px; padding:6px 12px; border-radius:999px; border:1px solid #D8DCD6; background:#fff; color:#33403C; cursor:pointer; }
+  #disclaimer { margin-top:14px; border-radius:12px; padding:10px 14px; font-size:12px; background:#FBF1E2; color:#7A5419; display:flex; gap:8px; align-items:flex-start; }
+  #chat { flex:1; overflow-y:auto; padding:0 24px 16px; display:flex; flex-direction:column; gap:14px; }
+  .row { display:flex; }
+  .row.user { justify-content:flex-end; }
+  .bubble { max-width:85%; border-radius:16px; padding:10px 15px; font-size:14px; line-height:1.5; }
+  .bubble.user { background:#1F2E2B; color:#F7F8F6; }
+  .bubble.assistant { background:#fff; border:1px solid #E1E4DE; }
+  .card { width:100%; border-radius:16px; padding:16px; border:1px solid; }
+  .gauge { display:flex; gap:4px; margin-bottom:12px; }
+  .gauge div { flex:1; height:8px; border-radius:999px; background:#E4E1D8; }
+  .card-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; font-weight:600; font-size:15px; }
+  .why-btn { background:none; border:none; font-size:12px; opacity:.7; cursor:pointer; padding:0 0 8px; display:flex; align-items:center; gap:4px; color:#1F2E2B; }
+  .reasoning li { font-size:13px; margin-bottom:6px; color:#33403C; }
+  .reasoning { margin:0 0 8px; padding-left:18px; }
+  .disclaimer-line { font-size:11px; font-style:italic; opacity:.7; color:#33403C; margin-top:6px; }
+  .kb-tag { font-size:10.5px; opacity:.5; margin-top:6px; padding:0 2px; font-family:'IBM Plex Mono',monospace; }
+  #loadingRow { font-size:13px; opacity:.6; padding:0 24px; display:none; align-items:center; gap:8px; }
+  #inputBar { padding:14px 24px 24px; }
+  #inputPill { display:flex; align-items:center; gap:8px; border:1px solid #D8DCD6; background:#fff; border-radius:999px; padding:8px 8px 8px 16px; }
+  #textInput { flex:1; border:none; outline:none; font-size:14px; font-family:inherit; background:transparent; }
+  #sendBtn { width:32px; height:32px; border-radius:999px; border:none; background:#2F6E5C; color:#fff; cursor:pointer; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+  #sendBtn:disabled { opacity:.3; cursor:default; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="sidebar">
+    <div id="keyBlock">
+      <div class="eyebrow">Groq API key</div>
+      <p class="muted" style="font-size:12px;margin:6px 0 0;">Free, no card needed — get one at console.groq.com/keys. Kept only in this tab's memory, never saved to disk.</p>
+      <div id="keyRow">
+        <input id="apiKeyInput" type="password" placeholder="gsk_..." />
+        <button id="saveKeyBtn">Use key</button>
+      </div>
+      <div id="keyStatus"></div>
+    </div>
+    <div class="eyebrow" style="display:flex;align-items:center;gap:6px;">✦ Demo scenarios</div>
+    <p class="muted" style="font-size:12px;margin:6px 0 12px;">Tap one to run a scripted patient case through the kiosk live.</p>
+    <div id="scenarioList"></div>
+    <div id="sideFooter">Runs Llama 3.3 70B on Groq's free tier + a curated symptom knowledge base — no local install, no GPU, no cost to run.</div>
+  </div>
+
+  <div id="main">
+    <div id="kiosk">
+      <div id="header">
+        <div id="headerTop">
+          <div id="brand">
+            <div id="logo">⚕</div>
+            <div>
+              <h1>Sahara Health Kiosk</h1>
+              <p id="tagline">Symptom triage guidance — not a diagnosis</p>
+            </div>
+          </div>
+          <button id="toggleBtn">Hide scenarios</button>
+        </div>
+        <div id="disclaimer">
+          <span>⚠</span>
+          <span>Prototype for demonstration only — not a substitute for professional medical advice. In an emergency, go to the nearest hospital or call local emergency services immediately.</span>
+        </div>
+      </div>
+      <div id="chat"></div>
+      <div id="loadingRow"><span class="spin">⟳</span> thinking through the reference notes…</div>
+      <div id="inputBar">
+        <div id="inputPill">
+          <input id="textInput" placeholder="Describe what you're feeling…" />
+          <button id="sendBtn">➤</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const KB = [
+  { id:"cardiac", label:"Chest pain / cardiac", level:"urgent",
+    keywords:["chest pain","chest tightness","pressure in chest","left arm pain","shortness of breath","breathless","sweating chest","jaw pain chest"],
+    notes:"Chest pain or pressure with breathlessness, sweating, or pain spreading to the arm/jaw can indicate a heart attack. This is a medical emergency regardless of age — get to the nearest hospital or call emergency services immediately." },
+  { id:"stroke", label:"Sudden severe headache / stroke signs", level:"urgent",
+    keywords:["worst headache of my life","sudden severe headache","blurred vision","slurred speech","one side weak","face drooping","numb one side","can't speak"],
+    notes:"A sudden 'worst headache of life', slurred speech, facial drooping, or one-sided weakness/numbness are stroke warning signs. Every minute matters — go to a hospital immediately, do not wait to see if it passes." },
+  { id:"anaphylaxis", label:"Severe allergic reaction", level:"urgent",
+    keywords:["swelling face","throat closing","difficulty breathing after sting","difficulty breathing after eating","hives all over","bee sting swelling","allergic reaction breathing"],
+    notes:"Facial or throat swelling with difficulty breathing after a sting, food, or medicine is anaphylaxis, a life-threatening emergency. Get to a hospital immediately; if an epinephrine auto-injector is available and the person is trained, use it while arranging transport." },
+  { id:"hypoglycemia", label:"Diabetic emergency", level:"urgent",
+    keywords:["diabetic dizzy","shaking sweating confused","low blood sugar","missed meal diabetic","diabetic confusion","fainting diabetic"],
+    notes:"In a known diabetic, sudden sweating, shakiness, confusion, or fainting can mean dangerously low blood sugar. If conscious and able to swallow, give something sugary immediately and seek medical help; if unconscious, this is an emergency." },
+  { id:"snakebite", label:"Snake bite", level:"urgent",
+    keywords:["snake bite","snakebite","bitten by snake","fang marks","bite while farming field"],
+    notes:"Any snake bite should be treated as a medical emergency even if the snake looked harmless. Keep the person still, keep the bitten limb below heart level, remove tight clothing/jewellery near the bite, and get to a hospital immediately. Do not cut the wound, apply a tight tourniquet, or try to suck out venom." },
+  { id:"heatstroke", label:"Heat exhaustion / heat stroke", level:"urgent",
+    keywords:["heat stroke","fainted in sun","very hot skin no sweat","confused after working in sun","dehydrated collapse"],
+    notes:"Hot, dry skin, confusion, or collapse after heat exposure can be heat stroke, a medical emergency. Move to shade, cool the body with water/wet cloths, and get emergency care immediately, especially if the person is confused or not sweating." },
+  { id:"infant-fever", label:"High fever in infant", level:"urgent",
+    keywords:["baby fever","infant fever","6 month old fever","baby not feeding","baby limp","infant not waking"],
+    notes:"In infants under 1 year, a high fever combined with poor feeding, unusual drowsiness, or being hard to wake needs urgent medical assessment, since infants can deteriorate quickly." },
+  { id:"pregnancy-bleeding", label:"Bleeding in pregnancy", level:"urgent",
+    keywords:["pregnant bleeding","bleeding while pregnant","pregnancy cramping blood","pregnant severe abdominal pain"],
+    notes:"Any vaginal bleeding during pregnancy, especially with cramping or pain, needs prompt medical evaluation to check on the health of the mother and pregnancy." },
+  { id:"tb-cough", label:"Persistent cough / possible TB", level:"monitor",
+    keywords:["cough three weeks","cough for weeks","coughing blood","night sweats cough","weight loss cough","long term cough"],
+    notes:"A cough lasting more than 2–3 weeks, especially with night sweats, unexplained weight loss, or blood in sputum, should be checked by a health worker soon — these can be signs of tuberculosis or another condition needing testing." },
+  { id:"joint-pain", label:"Gradual joint stiffness", level:"monitor",
+    keywords:["joint pain","knee stiffness","stiff joints morning","arthritis pain","gradual joint swelling"],
+    notes:"Gradual, mild joint pain or stiffness without fever, injury, or sudden swelling is usually not an emergency, but persistent or worsening symptoms are worth a routine check with a health worker." },
+  { id:"mild-fever", label:"Mild fever / flu-like illness", level:"monitor",
+    keywords:["fever three days","fever not going down","body ache fever","flu symptoms lingering"],
+    notes:"A mild fever that lasts more than 2–3 days, or comes with worsening body aches, is worth having checked by a health worker, especially if it doesn't respond to rest and fluids." },
+  { id:"minor-wound", label:"Minor cut or wound", level:"self_care",
+    keywords:["small cut","minor cut","cut finger","scrape","bleeding stopped cleaned wound","small kitchen cut"],
+    notes:"A small, clean cut where bleeding has stopped can usually be managed at home: wash with clean water, apply a clean dressing, and watch for signs of infection like increasing redness, warmth, or pus." },
+  { id:"common-cold", label:"Common cold", level:"self_care",
+    keywords:["runny nose","sore throat mild","sneezing","mild cold symptoms","stuffy nose","cough mild no fever"],
+    notes:"A runny nose, mild sore throat, and sneezing without high fever or breathing difficulty are typical of a common cold and usually resolve with rest, fluids, and time." },
+  { id:"mild-gastro", label:"Mild stomach upset", level:"self_care",
+    keywords:["mild diarrhea","upset stomach","nausea mild","loose motion once","stomach ache mild"],
+    notes:"A single episode of mild diarrhea or an upset stomach without blood, high fever, or signs of dehydration (very dry mouth, little urination, dizziness) can usually be managed at home with fluids and rest." },
+  { id:"minor-burn", label:"Minor burn", level:"self_care",
+    keywords:["small burn","minor burn","burned finger cooking","mild burn no blister"],
+    notes:"A small burn with red skin but no large blistering or charring can usually be cooled under running water for several minutes and kept clean at home." },
+  { id:"tension-headache", label:"Ordinary tension headache", level:"self_care",
+    keywords:["mild headache","tension headache","stress headache","headache after long day"],
+    notes:"A mild, familiar headache without sudden severe onset, fever, confusion, or vision changes is usually an ordinary tension headache manageable with rest, water, and a quiet space." },
+  { id:"elderly-fall", label:"Fall in an elderly person", level:"urgent",
+    keywords:["elderly fell","fall grandmother","hip pain after fall","can't stand after fall","old person fell"],
+    notes:"A fall in an older adult, especially with hip/pelvis pain, inability to bear weight, or head injury, needs prompt medical evaluation because of the risk of fractures or internal injury that isn't always obvious right away." },
+  { id:"mental-distress", label:"Emotional distress (non-crisis)", level:"monitor",
+    keywords:["feeling very stressed","can't sleep worry","overwhelmed anxious","low mood few weeks"],
+    notes:"Ongoing stress, anxiety, or low mood that's affecting daily life is worth discussing with a health worker or counsellor — support is available and reaching out early helps." },
+];
+
+const CRISIS_PATTERNS = ["kill myself","end my life","want to die","not worth living","suicide","hurt myself","harm myself","no reason to live","better off dead","end it all"];
+function isCrisis(text){ const t=text.toLowerCase(); return CRISIS_PATTERNS.some(p=>t.includes(p)); }
+
+function retrieve(text, topN=3){
+  const t = text.toLowerCase();
+  const scored = KB.map(entry=>{
+    const score = entry.keywords.reduce((acc,kw)=> acc + (t.includes(kw) ? kw.split(" ").length : 0), 0);
+    return { entry, score };
+  }).filter(s=>s.score>0);
+  scored.sort((a,b)=>b.score-a.score);
+  return scored.slice(0,topN).map(s=>s.entry);
+}
+
+const SCENARIOS = [
+  { label:"Farmer, chest pain", text:"I'm a 52 year old man. I've had chest pain and pressure for the last 20 minutes, and I'm sweating and short of breath." },
+  { label:"Mild cold", text:"I have a runny nose, mild sore throat, and I've been sneezing since yesterday. No fever." },
+  { label:"3-week cough", text:"I've had a cough for about 3 weeks now, and I've noticed some night sweats and I've lost some weight without trying." },
+  { label:"Infant high fever", text:"My 6 month old baby has a high fever and hasn't been feeding well since this morning, seems very sleepy." },
+  { label:"Small kitchen cut", text:"I cut my finger chopping vegetables, it's a small cut, bleeding has stopped and I cleaned it." },
+  { label:"Sudden severe headache", text:"I suddenly got the worst headache of my life about 10 minutes ago and my vision is blurry." },
+  { label:"Bee sting reaction", text:"I got stung by a bee and now my face is swelling up and I'm having trouble breathing." },
+  { label:"Diabetic, dizzy", text:"I'm diabetic and missed lunch. Now I'm shaking, sweating, and feeling confused." },
+  { label:"Snake bite in field", text:"I was working in the field and got bitten by a snake on my leg, it's swelling up." },
+  { label:"Feeling hopeless", text:"I don't see the point anymore, I've been thinking life isn't worth living." },
+];
+
+const LEVEL_META = {
+  urgent:    { label:"See a doctor now", color:"#B3402C", bg:"#FBEAE6" },
+  monitor:   { label:"Monitor closely",  color:"#A66A1E", bg:"#FBF1E2" },
+  self_care: { label:"Self-care at home",color:"#2F6E5C", bg:"#E9F3EF" },
+};
+const LEVEL_ORDER = ["self_care","monitor","urgent"];
+
+const SYSTEM_PROMPT_BASE = `You are the reasoning engine behind a community health triage kiosk for a low-connectivity rural area. You are NOT a doctor. You must NEVER name a specific diagnosis, prescribe medication, or give dosages. Your only job is to sort the patient's description into exactly one of three triage levels using ONLY the reference notes provided to you, plus safe general reasoning:
+
+- "urgent": see a doctor or clinic right now, or call emergency services
+- "monitor": not an emergency, but should see a health worker within a few days if it persists or worsens, and watch for warning signs
+- "self_care": safe to manage at home with basic care for now
+
+Rules:
+- If the description is too vague to safely triage, you may ask exactly ONE short clarifying question instead of giving a level yet (set need_more_info true).
+- Otherwise give a level directly. Do not ask more than one clarifying question total in a conversation.
+- Ground your reasoning in the reference notes you're given. If nothing relevant was retrieved, reason conservatively and say so.
+- Keep reasoning to 2-4 short bullet points, plain language, no jargon.
+- Never claim certainty about what condition it is. You are triaging urgency, not diagnosing.
+- Always include a one-line disclaimer that this is not a medical diagnosis.
+
+Respond with ONLY valid JSON, no markdown fences, no text outside the JSON, in exactly this shape:
+{"need_more_info": boolean, "question": string|null, "level": "urgent"|"monitor"|"self_care"|null, "reasoning": string[], "disclaimer": string}`;
+
+const GROQ_MODEL = "llama-3.3-70b-versatile";
+
+async function callModel(history, retrievedNotes, apiKey){
+  const notesBlock = retrievedNotes.length
+    ? retrievedNotes.map(n=>`- (${n.level}) ${n.label}: ${n.notes}`).join("\n")
+    : "No closely matching reference notes were retrieved. Reason conservatively.";
+  const system = `${SYSTEM_PROMPT_BASE}\n\nReference notes retrieved for this message:\n${notesBlock}`;
+
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json", "Authorization":`Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: GROQ_MODEL,
+      temperature: 0.2,
+      max_tokens: 700,
+      response_format: { type:"json_object" },
+      messages: [
+        { role:"system", content:system },
+        ...history.map(m=>({ role: m.role==="user"?"user":"assistant", content: m.text||"" }))
+      ]
+    })
+  });
+
+  if(!response.ok){
+    const errBody = await response.text().catch(()=> "");
+    throw new Error(`Groq API error (${response.status}): ${errBody.slice(0,200)}`);
+  }
+  const data = await response.json();
+  const raw = data.choices?.[0]?.message?.content?.trim() || "";
+  const cleaned = raw.replace(/```json|```/g,"").trim();
+  try { return JSON.parse(cleaned); }
+  catch { return { need_more_info:false, question:null, level:null, reasoning:["The kiosk had trouble reasoning about this one — please rephrase or try again."], disclaimer:"This is not a medical diagnosis." }; }
+}
+
+let apiKey = "";
+let messages = [
+  { role:"assistant", type:"text", text:"Namaste — tell me what's going on and I'll help you figure out whether to see a doctor now, keep an eye on it, or manage it at home." }
+];
+let loading = false;
+
+const chatEl = document.getElementById("chat");
+const loadingRow = document.getElementById("loadingRow");
+const scenarioListEl = document.getElementById("scenarioList");
+const textInput = document.getElementById("textInput");
+const sendBtn = document.getElementById("sendBtn");
+const apiKeyInput = document.getElementById("apiKeyInput");
+const saveKeyBtn = document.getElementById("saveKeyBtn");
+const keyStatus = document.getElementById("keyStatus");
+const toggleBtn = document.getElementById("toggleBtn");
+const sidebar = document.getElementById("sidebar");
+
+function escapeHtml(s){ const d=document.createElement("div"); d.textContent=s; return d.innerHTML; }
+
+function renderMessages(){
+  chatEl.innerHTML = "";
+  messages.forEach(m=>{
+    const row = document.createElement("div");
+    row.className = "row " + (m.role==="user" ? "user" : "assistant");
+    if(m.type==="text"){
+      const b = document.createElement("div");
+      b.className = "bubble " + (m.role==="user" ? "user" : "assistant");
+      b.textContent = m.text;
+      row.appendChild(b);
+    } else if(m.type==="triage"){
+      const wrap = document.createElement("div");
+      wrap.style.width="100%";
+      wrap.appendChild(renderTriageCard(m.result));
+      if(m.kb && m.kb.length){
+        const tag = document.createElement("div");
+        tag.className = "kb-tag";
+        tag.textContent = "grounded in: " + m.kb.join(", ");
+        wrap.appendChild(tag);
+      }
+      row.appendChild(wrap);
+    } else if(m.type==="crisis"){
+      const wrap = document.createElement("div");
+      wrap.style.width="100%";
+      wrap.appendChild(renderCrisisCard());
+      row.appendChild(wrap);
+    }
+    chatEl.appendChild(row);
+  });
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+function renderTriageCard(result){
+  const meta = LEVEL_META[result.level];
+  const card = document.createElement("div");
+  card.className = "card";
+  card.style.borderColor = meta.color + "33";
+  card.style.background = meta.bg;
+
+  const gauge = document.createElement("div");
+  gauge.className = "gauge";
+  LEVEL_ORDER.forEach(lvl=>{
+    const seg = document.createElement("div");
+    if(lvl === result.level) seg.style.background = meta.color;
+    gauge.appendChild(seg);
+  });
+  card.appendChild(gauge);
+
+  const head = document.createElement("div");
+  head.className = "card-head";
+  head.style.color = meta.color;
+  head.innerHTML = `<span>⚑</span><span>${escapeHtml(meta.label)}</span>`;
+  card.appendChild(head);
+
+  const whyBtn = document.createElement("button");
+  whyBtn.className = "why-btn";
+  whyBtn.textContent = "▾ Why this suggestion?";
+  const list = document.createElement("ul");
+  list.className = "reasoning";
+  (result.reasoning||[]).forEach(r=>{
+    const li = document.createElement("li");
+    li.textContent = r;
+    list.appendChild(li);
+  });
+  whyBtn.onclick = ()=>{
+    const visible = list.style.display !== "none";
+    list.style.display = visible ? "none" : "block";
+    whyBtn.textContent = (visible ? "▸" : "▾") + " Why this suggestion?";
+  };
+  card.appendChild(whyBtn);
+  card.appendChild(list);
+
+  const disc = document.createElement("p");
+  disc.className = "disclaimer-line";
+  disc.textContent = result.disclaimer;
+  card.appendChild(disc);
+
+  return card;
+}
+
+function renderCrisisCard(){
+  const card = document.createElement("div");
+  card.className = "card";
+  card.style.borderColor = "#B3402C33";
+  card.style.background = "#FBEAE6";
+  card.innerHTML = `
+    <div class="card-head" style="color:#B3402C;"><span>☎</span><span>You matter, and support is available</span></div>
+    <p style="font-size:13px;color:#33403C;margin:0 0 10px;">This kiosk isn't able to help with what you're going through, but people trained for exactly this are available right now, for free, confidentially:</p>
+    <ul style="font-size:13px;color:#33403C;margin:0 0 10px;padding-left:18px;">
+      <li><strong>Tele-MANAS (India, 24/7):</strong> call 14416 or 1-800-891-4416</li>
+      <li><strong>KIRAN Mental Health Helpline:</strong> 1800-599-0019</li>
+      <li>Outside India: findahelpline.com can connect you to a local crisis line.</li>
+      <li>If you're in immediate danger, go to the nearest hospital or call local emergency services now.</li>
+    </ul>
+    <p class="disclaimer-line">You don't have to go through this alone — reaching out is a strong first step.</p>
+  `;
+  return card;
+}
+
+function renderScenarios(){
+  scenarioListEl.innerHTML = "";
+  SCENARIOS.forEach(s=>{
+    const btn = document.createElement("button");
+    btn.className = "scenario-btn";
+    btn.textContent = s.label;
+    btn.onclick = ()=> send(s.text);
+    scenarioListEl.appendChild(btn);
+  });
+}
+
+function setLoading(v){
+  loading = v;
+  loadingRow.style.display = v ? "flex" : "none";
+  sendBtn.disabled = v || !textInput.value.trim();
+  document.querySelectorAll(".scenario-btn").forEach(b=> b.disabled = v);
+}
+
+async function send(text){
+  if(!text.trim() || loading) return;
+
+  if(!apiKey){
+    messages.push({ role:"user", type:"text", text });
+    messages.push({ role:"assistant", type:"text", text:"I need a free Groq API key before I can reason about this — paste one in the box at the top left (get one in under a minute at console.groq.com/keys, no card needed), then try again." });
+    textInput.value = "";
+    renderMessages();
+    return;
+  }
+
+  messages.push({ role:"user", type:"text", text });
+  const snapshotForModel = messages.slice();
+  textInput.value = "";
+  renderMessages();
+
+  if(isCrisis(text)){
+    messages.push({ role:"assistant", type:"crisis" });
+    renderMessages();
+    return;
+  }
+
+  setLoading(true);
+  const retrieved = retrieve(text);
+  try {
+    const result = await callModel(snapshotForModel, retrieved, apiKey);
+    if(result.need_more_info && result.question){
+      messages.push({ role:"assistant", type:"text", text: result.question });
+    } else {
+      messages.push({ role:"assistant", type:"triage", result, kb: retrieved.map(k=>k.label) });
+    }
+  } catch(err){
+    messages.push({ role:"assistant", type:"text", text:`Couldn't reach the model — check your API key is correct and still valid. (${err.message})` });
+  } finally {
+    setLoading(false);
+    renderMessages();
+  }
+}
+
+sendBtn.onclick = ()=> send(textInput.value);
+textInput.addEventListener("keydown", e=>{ if(e.key==="Enter") send(textInput.value); });
+textInput.addEventListener("input", ()=>{ sendBtn.disabled = loading || !textInput.value.trim(); });
+
+saveKeyBtn.onclick = ()=>{
+  apiKey = apiKeyInput.value.trim();
+  if(apiKey){
+    saveKeyBtn.textContent = "Saved";
+    saveKeyBtn.classList.add("active");
+    keyStatus.textContent = "Key active for this session — model: " + GROQ_MODEL;
+  }
+};
+
+toggleBtn.onclick = ()=>{
+  const collapsed = sidebar.classList.toggle("collapsed");
+  toggleBtn.textContent = collapsed ? "Show scenarios" : "Hide scenarios";
+};
+
+renderScenarios();
+renderMessages();
+setLoading(false);
+</script>
+</body>
+</html>
