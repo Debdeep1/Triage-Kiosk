@@ -1,1 +1,4 @@
 # Triage-Kiosk
+
+
+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
